@@ -1,0 +1,87 @@
+# import the necessary packages
+from imutils.video import FileVideoStream
+from imutils.video import FPS
+import numpy as np
+import argparse
+import imutils
+import time
+import cv2
+import execnet
+import sys
+# from cloudApp import cloudAPI
+from googleCloud import Gcloud
+def call_python_version(Version, Module, Function, ArgumentList):
+    gw      = execnet.makegateway("popen//python=python%s" % Version)
+    channel = gw.remote_exec("""
+        from %s import %s as the_function
+        channel.send(the_function(*channel.receive()))
+    """ % (Module, Function))
+    channel.send(ArgumentList)
+    return channel.receive()
+def skip():
+    for i in range(18):
+        frame=fvs.read()
+# construct the argument parse and parse the arguments
+
+car_cascade = cv2.CascadeClassifier('cars.xml')
+fvs = FileVideoStream("v2.1.mp4").start()
+# print(fvs)
+time.sleep(1.0)
+
+# start the FPS timer
+fps = FPS().start()
+count=0
+# obj=cloudAPI()
+obj1 = Gcloud()
+# loop over frames from the video file stream
+while fvs.more():
+
+    frame = fvs.read()
+    # frame = frame[230:960, 220:980] #y,x
+    f1=frame #color copy
+    frame = imutils.resize(frame, width=800) #width 800
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # f1=frame #B/W copy
+    frame = np.dstack([frame, frame, frame])
+    # cv2.rectangle(frame,(150,250),(600,500),(0,255,0),4)
+    # cv2.rectangle(frame,(150,250),(450,350),(250,255,0),2)
+
+    # cv2.rectangle(frame,(150,200),(600,500),(0,255,0),4)
+    cv2.rectangle(frame,(155,200),(440,285),(250,255,0),2)
+    
+    cars = car_cascade.detectMultiScale(frame, 1.2, 1)
+    
+    for (x,y,w,h) in cars:
+        if w>160 and h>160 and w<350 and h<350 and x>155 and x<440 and y>200 and y<285:
+        # if w>150 and h>150 and w<350 and h<350 and x>150 and x<450 and y>250 and y<350:
+            cv2.rectangle(frame,(x,y),(x+w,y+h),(120,0,255),5)
+            #skip frames as drawn
+            count+=1
+            print(count)
+            timestamp = (int)(time.time())
+            cv2.imwrite("Vehicles\\"+(str)(timestamp) +".jpg",f1)
+            result = call_python_version("2", "cloudApp", "Number_plate",["Vehicles\\"+(str)(timestamp)+".jpg",count])
+            # plate=obj.Number_plate("Vehicles\\"+(str)(timestamp)+".jpg",count)
+            from_path = "Vehicles\\"+ (str)(timestamp) +".jpg"
+            to_path = "Vehicles\\" + (str)(timestamp) + "_"+ (str)(result)+".jpg"
+            obj1.upload_blob("vehicledetection007.appspot.com",from_path,to_path)
+            skip()
+            
+    
+	# show the frame and update the FPS counter
+    cv2.imshow("Frame", frame)
+
+    if cv2.waitKey(1)==27:
+        break
+    fps.update()
+
+# stop the timer and display FPS information
+fps.stop()
+print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+
+# do a bit of cleanup
+cv2.destroyAllWindows()
+fvs.stop()
+
+
